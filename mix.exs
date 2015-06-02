@@ -13,8 +13,8 @@ defmodule VncEx.Mixfile do
   # Type `mix help compile.app` for more information
   def application do
     [
-      mod: { VncEx, [] },
-      applications: [:cowboy, :ranch] 
+				mod: { Http.Routes, [] },
+				applications: [:cowboy, :ranch] 
     ]
   end
 
@@ -28,7 +28,10 @@ defmodule VncEx.Mixfile do
   #
   # Type `mix help deps` for more examples and options
   defp deps do
-    [ { :cowboy, "1.0.0" },
-      { :jsex, "~> 2.0.0" } ]    
+    [ 
+				{ :cowboy, "1.0.0" },
+				{ :jsex, "~> 2.0.0" },
+				{ :poison, "~> 1.4.0" } 
+		]    
   end
 end

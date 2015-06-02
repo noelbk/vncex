@@ -1,0 +1,35 @@
+#! /bin/bash
+
+set -eu
+set -o pipefail
+
+FILENO=1
+WIDTH=1024
+HEIGHT=768
+MAXLEN=10000000
+FILE=$FILENO.png
+
+rand() {
+    echo $(($RANDOM * $1 / 32767))
+}
+
+echo -n > $FILE
+convert -size ${WIDTH}x${HEIGHT} canvas:#000000 png:- >> $FILE
+
+while true; do
+    w=$(rand $WIDTH)
+    h=$(rand $HEIGHT)
+    x=$(rand $(($HEIGHT - $h)))
+    y=$(rand $(($WIDTH - $w)))
+    c=$(printf "%02x%02x%02x" $(rand 255) $(rand 255) $(rand 255))
+    off=$(stat -c %s $FILE)
+    convert -size ${w}x${h} canvas:#$c png:- >> $FILE
+    len=$(($(stat -c %s $FILE) - $off))
+    echo "tile $x $y $w $h $FILE $off $len"
+    if [ $len -gt $MAXLEN ]; then
+	FILENO=$(($FILENO + 1))
+	FILE=$FILENO.png
+    fi
+    sleep .001
+done
+

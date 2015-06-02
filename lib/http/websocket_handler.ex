@@ -11,7 +11,7 @@ defmodule WebsocketHandler do
   # 3-tuple with :upgrade as shown below.  This is essentially following
   # the specification of websocket, in which a plain HTTP request is made
   # first, which requests an upgrade to the websocket protocol.
-  def init({tcp, http}, _req, _opts) do
+  def init({_tcp, _http}, _req, _opts) do
     {:upgrade, :protocol, :cowboy_websocket}
   end
 
@@ -70,7 +70,7 @@ defmodule WebsocketHandler do
   #
   # In a larger app various clauses of websocket_info might handle all kinds
   # of messages and pass information out the websocket to the client.
-  def websocket_info({timeout, _ref, _foo}, req, state) do
+  def websocket_info({_timeout, _ref, _foo}, req, state) do
 
     time = time_as_string()
 

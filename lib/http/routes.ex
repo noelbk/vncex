@@ -1,4 +1,4 @@
-defmodule VncEx do
+defmodule Http.Routes do
 
   def start(_type, _args) do
 
@@ -49,7 +49,10 @@ defmodule VncEx do
           {"/dynamic", DynamicPageHandler, []},
 
           # Serve websocket requests.
-          {"/websocket", WebsocketHandler, []}
+          {"/websocket", WebsocketHandler, []},
+
+          # Serve websocket requests.
+          {"/vnc", Http.VncHandler, []}
       ]}
     ])
     { :ok, _ } = :cowboy.start_http(:http, 

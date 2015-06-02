@@ -2,4 +2,5 @@
   "cowlib": {:hex, :cowlib, "1.0.1"},
   "jsex": {:hex, :jsex, "2.0.0"},
   "jsx": {:hex, :jsx, "2.6.1"},
+  "poison": {:hex, :poison, "1.4.0"},
   "ranch": {:hex, :ranch, "1.0.0"}}
