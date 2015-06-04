@@ -30,6 +30,6 @@ while true; do
 	FILENO=$(($FILENO + 1))
 	FILE=$FILENO.png
     fi
-    sleep .001
+    sleep .2
 done
 

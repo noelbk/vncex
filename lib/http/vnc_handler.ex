@@ -1,25 +1,21 @@
-defmodule Http.VncHandler do
-  @behaviour :cowboy_websocket_handler
+defmodule Http.Vnc.Handler do
+	defmodule State do
+		defstruct [ vnc_client: nil ]
+	end
 
-  def init({_tcp, _http}, _req, _opts) do
-    {:upgrade, :protocol, :cowboy_websocket}
+  def init(req, _opts) do
+		{:ok, vnc_client} = VNC.Client.start_link(self)
+    {:cowboy_websocket, req, %State{vnc_client: vnc_client}}
   end
 
-  def websocket_init(_TransportName, req, _opts) do
-		# todo - find a vnc client for server:port and add a listener
-		{:ok, vnc_client } = VNC.Client.start_link(self)
-    {:ok, req, vnc_client }
-  end
-
-  # Required callback.  Put any essential clean-up here.
-  def websocket_terminate(_reason, _req, _state) do
-    :ok
-  end
+	def terminate(reason, req, state) do
+		:erlang.exit(state.vnc_client, reason)
+	end
 
 	# handle a message from the browser
   def websocket_handle({:text, content}, req, state) do
-    { :ok, %{ "message" => message} } = JSEX.decode(content)
-    { :reply, {:text, message}, req, state}
+    {:ok, %{ "message" => message}} = Poison.decode(content)
+    {:reply, {:text, message}, req, state}
   end
 	
 	# TODO: messages from browser
@@ -31,15 +27,19 @@ defmodule Http.VncHandler do
 	# :speed
 
   # handle messages from the vnc client
-  def websocket_info({:vnc_client_msg, msg}, req, state) do
-    { :ok, json } = JSEX.encode(Tuple.to_list(msg))
-		# debug
-		IO.puts "DEBUG: websocket_info{:vnc_client_msg} msg=#{inspect msg} json=#{json}"
-    { :reply, {:text, json}, req, state}
+  def websocket_info({:vnc_client_msg, _pid, msg}, req, state) do
+		case msg.type do
+			:tile -> msg = %{msg | file: "/vnc_tile?file=#{msg.file}&off=#{msg.off}&len=#{msg.len}"}
+			_ -> msg
+		end
+    {:ok, json} = Poison.encode(msg)
+    {:reply, {:text, json}, req, state}
   end
 
   # fallback message handler 
-  def websocket_info(_info, req, state) do
+  def websocket_info(msg, req, state) do
+		# debug
+		IO.puts "DEBUG: websocket_info unkown msg=#{inspect msg}"
     {:ok, req, state}
   end
 

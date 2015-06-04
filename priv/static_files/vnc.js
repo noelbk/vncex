@@ -17,8 +17,8 @@ var Vnc = (function() {
     };  
 
     function onMessage(evt) { 
-	//console.log(evt.data);
 	msg = JSON.parse(evt.data);
+	console.log("onMessage: msg=" + msg);
 	if ( msg.type == 'tile' ) {
             var img = new Image();
 	    //var todo = addTodo();
@@ -29,7 +29,7 @@ var Vnc = (function() {
                 ctx.drawImage(this, msg.x, msg.y);
 		//});
             };
-            img.src = msg.url;
+            img.src = msg.file;
 	}
     };  
 

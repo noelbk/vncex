@@ -14,7 +14,7 @@ defmodule VncEx.Mixfile do
   def application do
     [
 				mod: { Http.Routes, [] },
-				applications: [:cowboy, :ranch] 
+				applications: [:cowboy, :ranch, :logger] 
     ]
   end
 
@@ -29,7 +29,7 @@ defmodule VncEx.Mixfile do
   # Type `mix help deps` for more examples and options
   defp deps do
     [ 
-				{ :cowboy, "1.0.0" },
+				{ :cowboy, git: "https://github.com/ninenines/cowboy", tag: "2.0.0-pre.1" },
 				{ :jsex, "~> 2.0.0" },
 				{ :poison, "~> 1.4.0" } 
 		]    

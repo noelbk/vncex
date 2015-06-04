@@ -1,3 +1,7 @@
+defmodule Vnc.Event.Tile do
+	defstruct [ :x, :y, :w, :h, :file, :off, :len, type: :tile ]
+end
+
 defmodule VNC.Client do
 	use GenServer
 
@@ -11,7 +15,7 @@ defmodule VNC.Client do
 	end
 
 	defmodule State do
-		defstruct events: nil, vnc_pid: nil
+		defstruct [events: nil, vnc_pid: nil]
 	end
 
 	def start_link(sendto \\ nil, opts \\ []) do
@@ -64,11 +68,11 @@ defmodule VNC.Client do
 
 	@doc "process a complete line from my vnc subprocess"
 	def handle_vnc_line(state, line) do
-		GenEvent.notify(state.events, {:vnc_client_line, self(), line})
 		int = fn s -> {i, ""} = Integer.parse(s); i; end
 		msg = case String.split(line) do
 						["tile", x, y, w, h, file, off, len] -> 
-							{:tile, int.(x), int.(y), int.(w), int.(h), file, int.(off), int.(len)}
+							%Vnc.Event.Tile{x: int.(x), y: int.(y), w: int.(w), h: int.(h), 
+															file: file, off: int.(off), len: int.(len)}
 						_ -> 
 							{:error, line}
 					end

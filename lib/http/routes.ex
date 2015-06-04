@@ -51,8 +51,11 @@ defmodule Http.Routes do
           # Serve websocket requests.
           {"/websocket", WebsocketHandler, []},
 
-          # Serve websocket requests.
-          {"/vnc", Http.VncHandler, []}
+          # vnc: vnc_server -> start vnc client websocket
+          {"/vnc", Http.Vnc.Handler, []},
+
+					# vnc_tile vnc_client, file, off, len -> sendfile(file, off, len)
+          {"/vnc_tile", Http.Vnc.TileHandler, []}
       ]}
     ])
     { :ok, _ } = :cowboy.start_http(:http, 

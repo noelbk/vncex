@@ -1,7 +1,5 @@
+# see https://github.com/ninenines/cowboy/blob/master/examples/websocket/src/ws_handler.erl
 defmodule WebsocketHandler do
-  @behaviour :cowboy_websocket_handler
-
-
   # We are using the websocket handler.  See the documentation here:
   #     http://ninenines.eu/docs/en/cowboy/HEAD/manual/websocket_handler/
   #
@@ -11,29 +9,9 @@ defmodule WebsocketHandler do
   # 3-tuple with :upgrade as shown below.  This is essentially following
   # the specification of websocket, in which a plain HTTP request is made
   # first, which requests an upgrade to the websocket protocol.
-  def init({_tcp, _http}, _req, _opts) do
-    {:upgrade, :protocol, :cowboy_websocket}
-  end
-
-  # This is the first required callback that's specific to websocket
-  # handlers.  Here I'm returning :ok, and no state since we don't 
-  # plan to track ant state.
-  #
-  # Useful to know: a new process will be spawned for each connection
-  # to the websocket.
-  def websocket_init(_TransportName, req, _opts) do
-    IO.puts "init.  Starting timer. PID is #{inspect(self())}"
-
-    # Here I'm starting a standard erlang timer that will send
-    # an empty message [] to this process in one second. If your handler
-    # can handle more that one kind of message that wouldn't be empty.
+  def init(req, opts) do
     :erlang.start_timer(1000, self(), [])
-    {:ok, req, :undefined_state }
-  end
-
-  # Required callback.  Put any essential clean-up here.
-  def websocket_terminate(_reason, _req, _state) do
-    :ok
+    {:cowboy_websocket, req, opts}
   end
 
   # websocket_handle deals with messages coming in over the websocket.
@@ -43,12 +21,12 @@ defmodule WebsocketHandler do
 
     # Use JSEX to decode the JSON message and extract the word entered
     # by the user into the variable 'message'.
-    { :ok, %{ "message" => message} } = JSEX.decode(content)
+    { :ok, %{ "message" => message} } = Poison.decode(content)
 
     # Reverse the message and use JSEX to re-encode a reply contatining
     # the reversed message.
     rev = String.reverse(message)
-    { :ok, reply } = JSEX.encode(%{ reply: rev})
+    { :ok, reply } = Poison.encode(%{ reply: rev})
 
     #IO.puts("Message: #{message}")
     
