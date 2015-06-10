@@ -2,6 +2,18 @@ defmodule Vnc.Event.Tile do
 	defstruct [ :x, :y, :w, :h, :file, :off, :len, type: :tile ]
 end
 
+defmodule Vnc.Event.Resize do
+	defstruct [ :w, :h, type: :resize ]
+end
+
+defmodule Vnc.Event.CopyRect do
+	defstruct [ :sx, :sy, :w, :h, :dx, :dy, type: :copyrect ]
+end
+
+defmodule Vnc.Event.Keyframe do
+	defstruct [ type: :keyframe ]
+end
+
 defmodule VNC.Client do
 	use GenServer
 
@@ -47,9 +59,9 @@ defmodule VNC.Client do
 
 	def init(state) do
 		vnc_pid = :erlang.open_port({:spawn_executable, "./vnc_client"}, [
-																		:exit_status,
-																		:stream,
-																		{:line, 8192}
+																	:exit_status,
+																	:stream,
+																	{:line, 8192}
 		])
 		state = %{state | vnc_pid: vnc_pid}
     :erlang.port_connect(state.vnc_pid, self())
@@ -73,6 +85,15 @@ defmodule VNC.Client do
 						["tile", x, y, w, h, file, off, len] -> 
 							%Vnc.Event.Tile{x: int.(x), y: int.(y), w: int.(w), h: int.(h), 
 															file: file, off: int.(off), len: int.(len)}
+						["copyrect", sx, sy, w, h, dx, dy] -> 
+							%Vnc.Event.CopyRect{sx: int.(w), sy: int.(h),
+																	w: int.(w), h: int.(h),
+																	dx: int.(dx), dy: int.(dy),
+																 }
+						["resize", w, h] -> 
+							%Vnc.Event.Resize{w: int.(w), h: int.(h)}
+						["keyframe"] -> 
+							%Vnc.Event.Keyframe{}
 						_ -> 
 							{:error, line}
 					end
