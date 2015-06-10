@@ -18,6 +18,9 @@
 #define MAX_PATH 8192
 #endif // MAX_PATH
 
+#define BUFSIZE 4096
+#define SSCANF_BUFSIZE "%4095s"
+
 #define OUT_MAX_SIZE 100000000 
 
 typedef struct client_data_s {
@@ -145,7 +148,7 @@ vnc_copyrect(rfbClient* client, int sx, int sy, int w, int h, int dx, int dy) {
 
 char*
 vnc_get_password(rfbClient* client) {
-    char buf[8192], *p;
+    char buf[BUFSIZE], *p;
     int ret;
 
     // debug
@@ -200,8 +203,11 @@ vnc_resize(rfbClient* rfb_client) {
 
 int
 handle_input(rfbClient* rfb_client) {
-    char buf[8192], *p;
-    int ret, err=-1;
+    char buf[BUFSIZE], *p;
+    int ret, n, err=-1;
+    char msg_type[BUFSIZE], event[BUFSIZE];
+    int x, y, buttons;
+
     do {
 	p = fgets(buf, sizeof(buf), stdin);
 	if( p == 0 ) {
@@ -210,8 +216,20 @@ handle_input(rfbClient* rfb_client) {
 	ret = strlen(buf)-1;
 	assertb(buf[ret] == '\n', ("read incomplete line: maxlen=%lu buf=%s", sizeof(buf), buf));
 	buf[ret] = 0;
-	// TODO: process buf
-	printf("read: %s", buf);
+	p = buf;
+	ret = sscanf(p, SSCANF_BUFSIZE "%n", msg_type, &n);
+	assertb(ret>=1 && n>0, ("sscanf(%s) for msg_type ret=%d n=%d", p, ret, n));
+	p += n;
+
+	if( strcmp(msg_type, "mouse") == 0 ) {
+	    ret = sscanf(p, "%d %d %d " SSCANF_BUFSIZE "%n", &x, &y, &buttons, event, &n);
+	    assertb(ret==4, ("sscanf(%s) for mouse ret=%d x=%d y=%d buttons=%d event=%s n=%d", p, ret, x, y, buttons, event, n));
+	    ret = SendPointerEvent(rfb_client, x, y, buttons);
+	    assertb(ret, ("SendPointerEvent(%d, %d, %d)", x, y, buttons));
+	}
+	else {
+	    assertb(0, ("couldn't parse message: msg_type=%s params=%s", msg_type, p));
+	}
 	err = 0;
     } while(0);
     return err;

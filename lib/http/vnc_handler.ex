@@ -8,14 +8,15 @@ defmodule Http.Vnc.Handler do
     {:cowboy_websocket, req, %State{vnc_client: vnc_client}}
   end
 
-	def terminate(reason, req, state) do
+	def terminate(reason, _req, state) do
 		:erlang.exit(state.vnc_client, reason)
 	end
 
 	# handle a message from the browser
   def websocket_handle({:text, content}, req, state) do
-    {:ok, %{ "message" => message}} = Poison.decode(content)
-    {:reply, {:text, message}, req, state}
+		{:ok, msg} = Poison.decode(content)
+		send(state.vnc_client, msg)
+    {:ok, req, state}
   end
 	
 	# TODO: messages from browser

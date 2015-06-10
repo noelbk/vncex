@@ -13,6 +13,12 @@ var Vnc = (function() {
 	websocket.onopen = function(evt) { onOpen(evt) }; 
 	websocket.onclose = function(evt) { onClose(evt) }; 
 	websocket.onmessage = function(evt) { onMessage(evt) }; 
+	var canvas = $("#canvas")[0];
+	canvas.addEventListener("mousedown", function(e) { return onMouse(e) }, false);
+	canvas.addEventListener("mouseup", function(e) { return onMouse(e) }, false);
+	canvas.addEventListener("mousemove", function(e) { return onMouse(e) }, false);
+	canvas.addEventListener("ondblclick", function(e) { return onMouse(e) }, false);
+	canvas.addEventListener("onclick", function(e) { return onMouse(e) }, false);
     };  
 
     function addTodo(readyFunc) {
@@ -35,6 +41,17 @@ var Vnc = (function() {
 	    todo_list[i].ready();
 	}	
 	todo_list.splice(0, i);
+    }
+
+    function send(data) {
+	websocket.send(JSON.stringify(data));
+    }
+
+    function onMouse(e) { 
+	var canvas = $("#canvas")[0];
+	var rect = canvas.getBoundingClientRect();
+	send({type: "mouse", event: "down", buttons: e.buttons, x: Math.round(e.clientX - rect.left), y: Math.round(e.clientY - rect.top)});
+	return false;
     }
 
     function onMessage(evt) { 

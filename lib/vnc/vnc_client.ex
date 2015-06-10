@@ -14,6 +14,10 @@ defmodule Vnc.Event.Keyframe do
 	defstruct [ type: :keyframe ]
 end
 
+defmodule Vnc.Event.Password do
+	defstruct [ type: :password ]
+end
+
 defmodule VNC.Client do
 	use GenServer
 
@@ -77,7 +81,7 @@ defmodule VNC.Client do
 	def handle_call(:events, _from, state) do
 		{:reply, {:ok, state.events}, state}
 	end
-
+	
 	@doc "process a complete line from my vnc subprocess"
 	def handle_vnc_line(state, line) do
 		int = fn s -> {i, ""} = Integer.parse(s); i; end
@@ -94,6 +98,8 @@ defmodule VNC.Client do
 							%Vnc.Event.Resize{w: int.(w), h: int.(h)}
 						["keyframe"] -> 
 							%Vnc.Event.Keyframe{}
+						["password?"] -> 
+							%Vnc.Event.Password{}
 						_ -> 
 							{:error, line}
 					end
@@ -110,4 +116,11 @@ defmodule VNC.Client do
 		raise ArgumentError, message: "line buffer overflow"
 	end
 
+	## messages from client to server
+
+	def handle_info(%{"type" => "mouse", "x" => x, "y" => y, "buttons" => buttons, "event" => event}, state) do
+		:erlang.port_command(state.vnc_pid, "mouse #{x} #{y} #{buttons} #{event}\n")
+		{:noreply, state}
+	end
+		
 end
