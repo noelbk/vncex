@@ -20,9 +20,9 @@ defmodule VNC.ClientTest do
 	end
 
 	test "vnc_client events" do
-		{:ok, vnc_client} = VNC.Client.start_link(self)
+		{:ok, vnc_client} = VNC.Client.start_link(self, [cmd: "test/vnc_client_mock"])
 		{:ok, events} = VNC.Client.events(vnc_client)
-		GenEvent.add_handler(events, PutsEvent, :ok)
+		#GenEvent.add_handler(events, PutsEvent, :ok)
 
 		myself = self()
 		myfunc = fn(msg) ->
@@ -30,9 +30,7 @@ defmodule VNC.ClientTest do
 		end
 		GenEvent.add_handler(events, FuncEvent, myfunc)
 
-		assert_receive({:vnc_client_line, ^vnc_client, _msg})
-		assert_receive({:myfunc, :vnc_client_line})
-		assert_receive({:vnc_client_msg, ^vnc_client, {:tile, _x, _y, _w, _h, _file, _off, _len}})
+		assert_receive({:vnc_client_msg, ^vnc_client, %Vnc.Event.Tile{}})
 		assert_receive({:myfunc, :vnc_client_msg})
 		VNC.Client.stop(vnc_client)
 		assert_receive({:vnc_client_stop, ^vnc_client})

@@ -25,7 +25,7 @@ while true; do
     off=$(stat -c %s $FILE)
     convert -size ${w}x${h} canvas:#$c png:- >> $FILE
     len=$(($(stat -c %s $FILE) - $off))
-    echo "tile $x $y $w $h $FILE $off $len"
+    echo "tile $x $y $w $h $FILE $off $len" 2>/dev/null
     if [ $len -gt $MAXLEN ]; then
 	FILENO=$(($FILENO + 1))
 	FILE=$FILENO.png

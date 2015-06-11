@@ -30,8 +30,9 @@ defmodule VncEx.Mixfile do
   defp deps do
     [ 
 				{ :cowboy, git: "https://github.com/ninenines/cowboy", tag: "2.0.0-pre.1" },
-				{ :jsex, "~> 2.0.0" },
-				{ :poison, "~> 1.4.0" } 
+				{ :poison, "~> 1.4.0" },
+				#{ :sqlite_ecto, "~> 0.1.0" }
+				{ :esqlite, "~> 0.1.0" }
 		]    
   end
 end

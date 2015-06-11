@@ -45,7 +45,15 @@ defmodule VNC.Client do
 			GenEvent.add_handler(events, Forwarder, sendto)
 		end
 
-		state = %State{events: events}
+		{cmd, opts} = Keyword.pop(opts, :cmd, "./vnc_client")
+		vnc_pid = :erlang.open_port({:spawn_executable, cmd}, [
+																	:exit_status,
+																	:stream,
+																	{:line, 8192}
+		])
+
+		state = %State{events: events, vnc_pid: vnc_pid}
+
 		GenServer.start_link(__MODULE__, state, opts)
 	end
 
@@ -62,12 +70,6 @@ defmodule VNC.Client do
 	# GenServer callbacks
 
 	def init(state) do
-		vnc_pid = :erlang.open_port({:spawn_executable, "./vnc_client"}, [
-																	:exit_status,
-																	:stream,
-																	{:line, 8192}
-		])
-		state = %{state | vnc_pid: vnc_pid}
     :erlang.port_connect(state.vnc_pid, self())
 		{:ok, state}
 	end
@@ -90,10 +92,9 @@ defmodule VNC.Client do
 							%Vnc.Event.Tile{x: int.(x), y: int.(y), w: int.(w), h: int.(h), 
 															file: file, off: int.(off), len: int.(len)}
 						["copyrect", sx, sy, w, h, dx, dy] -> 
-							%Vnc.Event.CopyRect{sx: int.(w), sy: int.(h),
+							%Vnc.Event.CopyRect{sx: int.(sx), sy: int.(sy),
 																	w: int.(w), h: int.(h),
-																	dx: int.(dx), dy: int.(dy),
-																 }
+																	dx: int.(dx), dy: int.(dy)}
 						["resize", w, h] -> 
 							%Vnc.Event.Resize{w: int.(w), h: int.(h)}
 						["keyframe"] -> 
