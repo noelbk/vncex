@@ -1,4 +1,4 @@
-defmodule VncEx.Supervisor do
+defmodule Vnc.Supervisor do
   use Supervisor
 
   def start_link(_) do

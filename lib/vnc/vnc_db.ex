@@ -1,7 +1,42 @@
 defmodule Vnc.Db do
 	use GenServer
 
-	def open(filename) do
+	defmodule State do
+		defstruct [db: nil]
+	end
+
+	def start_link(filename, opts \\ []) do
+		{:ok, db, version} = open(filename)
+		state = %State{ db: db }
+		GenServer.start_link(__MODULE__, state, opts)
+	end
+
+	def event_insert(server, event) do
+		{:ok, json} = Vnc.Event.encode(event)
+		{:ok, decoded} = Vnc.Event.decode(json)
+    GenServer.cast(server, {:event_insert, event})
+		# return a decoded version of the event so the unit tests have something to compare it to
+		{:ok, decoded}
+	end
+	
+	def event_play(server, time) do
+    GenServer.call(server, {:event_play, time})
+	end
+
+	def event_next(server, rs) do
+    GenServer.call(server, {:event_next, rs})
+	end
+	
+	def event_finalize(server, rs) do
+    GenServer.call(server, {:event_finalize, rs})
+	end
+
+
+	def init(state) do
+		{:ok, state}
+	end
+	
+	defp open(filename) do
 		if is_binary(filename) do
 			filename = String.to_char_list(filename)
 		end
@@ -44,14 +79,13 @@ defmodule Vnc.Db do
 		{:ok, 1}
 	end
 
-	def event_insert(db, event) do
+	def handle_cast({:event_insert, event}, state) do
 		{:ok, json} = Vnc.Event.encode(event)
-		{:ok, dec} = Vnc.Event.decode(json)
-		:"$done" = :esqlite3.exec("insert into vnc_event (time, type, json) values (?1, ?2, ?3)", [event.time, event.type, json], db)
-		{:ok, dec}
+		:"$done" = :esqlite3.exec("insert into vnc_event (time, type, json) values (?1, ?2, ?3)", [event.time, event.type, json], state.db)
+		{:noreply, state}
 	end
 	
-	def event_play(db, time) do
+	def handle_call({:event_play, time}, _from, state) do
 		{:ok, rs} = :esqlite3.prepare(
       "select * from vnc_event" <>
 			" where time >= (" <>
@@ -59,24 +93,24 @@ defmodule Vnc.Db do
 			"   from vnc_event" <>
 			"   where time <= ?1" <> 
 			"   and type='keyframe')" <>
-			" order by time", db)
+			" order by time", state.db)
 		:ok = :esqlite3.bind(rs, [time])
-		{:ok, rs}
+		{:reply, {:ok, rs}, state}
 	end
 
-	def event_next(rs) do
+	def handle_call({:event_next, rs}, _from, state) do
 		case :esqlite3.step(rs) do
 			{:row, {_id, _time, _type, event}} -> 
 				{:ok, event} = Vnc.Event.decode(event)
-				{:vnc_event, event}
+				{:reply, {:vnc_event, event}, state}
 			:"$done" -> 
-				:end
+				{:reply, :end, state}
 		end
 	end
 	
-	def event_finalize(rs) do
+	def handle_call({:event_finalize, _rs}, _from, state) do
 		# TODO(nbk) shouldn't this be supported by esqlite3?
 		# :esqlite3.finalize(rs)
-		:ok
+		{:reply, :ok, state}
 	end
 end

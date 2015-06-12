@@ -68,7 +68,7 @@ defmodule Vnc.Player do
 
 	def handle_call({:seek, time}, _from, state) do
 		{:ok, play_rs} = Vnc.Db.seek(time)
-		{:ok, play_tref} = :timer.send_after(0, {:play_rs})
+		{:ok, _play_tref} = :timer.send_after(0, {:play_rs})
 		state = %{state | 
 							play_rs: play_rs, 
 							play_time: time,
@@ -92,7 +92,7 @@ defmodule Vnc.Player do
 				{:ok, play_time} = play_time(state)
 				if event.time > play_time do
 					# If the event time is in the future, then set a timer.
-					{:ok, play_tref} = :timer.send_after((event.time - play_time)/self.play_speed, {:play_rs, event})
+					{:ok, _play_tref} = :timer.send_after((event.time - play_time)/self.play_speed, {:play_rs, event})
 					{:noreply, state}
 				else
 					{:ok, state} = send_event(event, state)

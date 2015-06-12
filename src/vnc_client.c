@@ -22,7 +22,7 @@
 #define SSCANF_BUFSIZE "%4095s"
 
 #define OUT_MAX_SIZE 100000000 
-#define KEYFRAME_MAX 20000
+#define KEYFRAME_MAX 5000000
 
 typedef struct client_data_s {
     char *out_prefix;
@@ -37,6 +37,7 @@ typedef struct client_data_s {
 void
 client_data_init(client_data_t *client_data) {
     memset(client_data, 0, sizeof(*client_data));
+    client_data->out_max_size = OUT_MAX_SIZE;
     client_data->keyframe_max = KEYFRAME_MAX;
     client_data->keyframe_last = -1;
 }
@@ -53,23 +54,26 @@ int
 client_data_open(rfbClient* rfb_client, client_data_t *client_data) {
     int ret, err=0;
     int fd=-1;
-    off_t pos = ftell(client_data->out_fp);
+    off_t pos=0;
     do {
-	/* add a keyframe every few bytes */
-	if( client_data->keyframe_last == -1 || pos - client_data->keyframe_last > client_data->keyframe_max ) {
-	    ret = SendFramebufferUpdateRequest(rfb_client, 0, 0, rfb_client->width, rfb_client->height, 0);
-	    assertb(ret, ("SendFramebufferUpdateRequest"));
-	    printf("keyframe\n");
-	    client_data->keyframe_last = pos;
-	}
-
 	if( client_data->out_fp ) {
-	    if( ftell(client_data->out_fp) < client_data->out_max_size ) {
+	    pos = ftell(client_data->out_fp);
+
+	    /* add a keyframe every few bytes */
+	    if( client_data->keyframe_last == -1 || pos - client_data->keyframe_last > client_data->keyframe_max ) {
+		ret = SendFramebufferUpdateRequest(rfb_client, 0, 0, rfb_client->width, rfb_client->height, 0);
+		assertb(ret, ("SendFramebufferUpdateRequest"));
+		printf("keyframe\n");
+		client_data->keyframe_last = pos;
+	    }
+
+	    if( pos < client_data->out_max_size ) {
 		err = 0;
 		break;
 	    }
 	    fclose(client_data->out_fp);
 	    client_data->out_fp = 0;
+	    pos = 0;
 	}
 	
 	while(1) {

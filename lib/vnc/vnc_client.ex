@@ -16,7 +16,7 @@ defmodule Vnc.Client do
 	end
 
 	def start_link(dir, opts \\ []) do
-		
+	
 		{events, opts} = Keyword.pop(opts, :events)
 		if events == nil do
 			{:ok, events} = GenEvent.start_link
@@ -24,7 +24,7 @@ defmodule Vnc.Client do
 
 		:ok = File.mkdir_p(dir)
 		db_path = Path.join([dir, "vnc_client.db"])
-		{:ok, db, _version} = Vnc.Db.open(db_path)
+		{:ok, db } = Vnc.Db.start_link(db_path)
 
 		{listener, opts} = Keyword.pop(opts, :listener)
 		if listener != nil do
@@ -125,7 +125,7 @@ defmodule Vnc.Client do
 	# type: :mouse, x: 4, y: 342, buttons: 0, event: "down"
 	def handle_info(event=%{type: :mouse, x: x, y: y, buttons: buttons, event: mouse_event}, state) do
 		{:ok, event, state} = event_set_time(event, state)
-		#Vnc.Db.event_insert(state.db, event)
+		Vnc.Db.event_insert(state.db, event)
 		:erlang.port_command(state.vnc_pid, "mouse #{x} #{y} #{buttons} #{mouse_event}\n")
 		{:noreply, state}
 	end

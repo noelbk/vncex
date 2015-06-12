@@ -68,6 +68,7 @@ defmodule Http.Routes do
     #Application.put_env(:dbg, :device, device) 
     #IEx.configure([colors: [enabled: false]]) 
     #Dbg.reset                               
-    #VncEx.Supervisor.start_link([])
+
+    Vnc.Supervisor.start_link([])
   end
 end
