@@ -1,25 +1,6 @@
-defmodule Vnc.Event.Tile do
-	defstruct [ :x, :y, :w, :h, :file, :off, :len, type: :tile ]
-end
-
-defmodule Vnc.Event.Resize do
-	defstruct [ :w, :h, type: :resize ]
-end
-
-defmodule Vnc.Event.CopyRect do
-	defstruct [ :sx, :sy, :w, :h, :dx, :dy, type: :copyrect ]
-end
-
-defmodule Vnc.Event.Keyframe do
-	defstruct [ type: :keyframe ]
-end
-
-defmodule Vnc.Event.Password do
-	defstruct [ type: :password ]
-end
-
-defmodule VNC.Client do
+defmodule Vnc.Client do
 	use GenServer
+	use Timex
 
 	defmodule Forwarder do
 		use GenEvent
@@ -31,29 +12,39 @@ defmodule VNC.Client do
 	end
 
 	defmodule State do
-		defstruct [events: nil, vnc_pid: nil]
+		defstruct [events: nil, vnc_pid: nil, t0: nil, db: nil, db_path: nil, dir: nil]
 	end
 
-	def start_link(sendto \\ nil, opts \\ []) do
-
+	def start_link(dir, opts \\ []) do
+		
 		{events, opts} = Keyword.pop(opts, :events)
 		if events == nil do
 			{:ok, events} = GenEvent.start_link
 		end
 
-		if sendto != nil do
-			GenEvent.add_handler(events, Forwarder, sendto)
+		:ok = File.mkdir_p(dir)
+		db_path = Path.join([dir, "vnc_client.db"])
+		{:ok, db, _version} = Vnc.Db.open(db_path)
+
+		{listener, opts} = Keyword.pop(opts, :listener)
+		if listener != nil do
+			GenEvent.add_handler(events, Forwarder, listener)
 		end
 
 		{cmd, opts} = Keyword.pop(opts, :cmd, "./vnc_client")
 		vnc_pid = :erlang.open_port({:spawn_executable, cmd}, [
+																	{:args, [dir]},
 																	:exit_status,
 																	:stream,
-																	{:line, 8192}
+																	{:line, 8192},
 		])
 
-		state = %State{events: events, vnc_pid: vnc_pid}
-
+		state = %State{events: events, 
+									 vnc_pid: vnc_pid,
+									 db: db,
+									 db_path: db_path,
+									 dir: dir,
+									}
 		GenServer.start_link(__MODULE__, state, opts)
 	end
 
@@ -65,6 +56,11 @@ defmodule VNC.Client do
 	@doc "get a GenEvent pid to subscribe to messages"
 	def events(server) do
     GenServer.call(server, :events)
+	end
+
+	@doc "return my db"
+	def db(server) do
+    GenServer.call(server, :db)
 	end
 
 	# GenServer callbacks
@@ -83,28 +79,35 @@ defmodule VNC.Client do
 	def handle_call(:events, _from, state) do
 		{:reply, {:ok, state.events}, state}
 	end
+
+	@doc "return my db"
+	def handle_call(:db, _from, state) do
+		{:reply, {:ok, state.db}, state}
+	end
 	
 	@doc "process a complete line from my vnc subprocess"
 	def handle_vnc_line(state, line) do
 		int = fn s -> {i, ""} = Integer.parse(s); i; end
-		msg = case String.split(line) do
-						["tile", x, y, w, h, file, off, len] -> 
-							%Vnc.Event.Tile{x: int.(x), y: int.(y), w: int.(w), h: int.(h), 
-															file: file, off: int.(off), len: int.(len)}
-						["copyrect", sx, sy, w, h, dx, dy] -> 
-							%Vnc.Event.CopyRect{sx: int.(sx), sy: int.(sy),
-																	w: int.(w), h: int.(h),
-																	dx: int.(dx), dy: int.(dy)}
-						["resize", w, h] -> 
-							%Vnc.Event.Resize{w: int.(w), h: int.(h)}
-						["keyframe"] -> 
-							%Vnc.Event.Keyframe{}
-						["password?"] -> 
-							%Vnc.Event.Password{}
-						_ -> 
-							{:error, line}
-					end
-		GenEvent.notify(state.events, {:vnc_client_msg, self(), msg})
+		event = case String.split(line) do
+							["tile", x, y, w, h, file, off, len] -> 
+								%Vnc.Event.Tile{x: int.(x), y: int.(y), w: int.(w), h: int.(h), 
+																file: file, off: int.(off), len: int.(len)}
+							["copyrect", sx, sy, w, h, dx, dy] -> 
+								%Vnc.Event.CopyRect{sx: int.(sx), sy: int.(sy),
+																		w: int.(w), h: int.(h),
+																		dx: int.(dx), dy: int.(dy)}
+							["resize", w, h] -> 
+								%Vnc.Event.Resize{w: int.(w), h: int.(h)}
+							["keyframe"] -> 
+								%Vnc.Event.Keyframe{}
+							["password?"] -> 
+								%Vnc.Event.Password{}
+							_ -> 
+								{:error, line}
+						end
+		{:ok, event, state} = event_set_time(event, state)
+		#Vnc.Db.event_insert(state.db, event)
+		GenEvent.notify(state.events, {:vnc_event, self(), event})
 		state
 	end
 
@@ -119,9 +122,21 @@ defmodule VNC.Client do
 
 	## messages from client to server
 
-	def handle_info(%{"type" => "mouse", "x" => x, "y" => y, "buttons" => buttons, "event" => event}, state) do
-		:erlang.port_command(state.vnc_pid, "mouse #{x} #{y} #{buttons} #{event}\n")
+	# type: :mouse, x: 4, y: 342, buttons: 0, event: "down"
+	def handle_info(event=%{type: :mouse, x: x, y: y, buttons: buttons, event: mouse_event}, state) do
+		{:ok, event, state} = event_set_time(event, state)
+		#Vnc.Db.event_insert(state.db, event)
+		:erlang.port_command(state.vnc_pid, "mouse #{x} #{y} #{buttons} #{mouse_event}\n")
 		{:noreply, state}
 	end
-		
+
+	def event_set_time(event, state) do
+		now = Time.now(:msecs)
+		if state.t0 == nil do
+			state = %{state | t0: now}
+		end
+		event = Map.put(event, :time, now - state.t0)
+		{:ok, event, state}
+	end
+	
 end

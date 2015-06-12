@@ -22,6 +22,7 @@
 #define SSCANF_BUFSIZE "%4095s"
 
 #define OUT_MAX_SIZE 100000000 
+#define KEYFRAME_MAX 20000
 
 typedef struct client_data_s {
     char *out_prefix;
@@ -29,12 +30,15 @@ typedef struct client_data_s {
     char out_path[MAX_PATH];
     int out_index;
     int out_max_size;
+    off_t keyframe_last;
+    off_t keyframe_max;
 } client_data_t;
 
 void
 client_data_init(client_data_t *client_data) {
     memset(client_data, 0, sizeof(*client_data));
-    client_data->out_max_size = OUT_MAX_SIZE;
+    client_data->keyframe_max = KEYFRAME_MAX;
+    client_data->keyframe_last = -1;
 }
 
 void
@@ -46,11 +50,19 @@ client_data_free(client_data_t *client_data) {
 }
 
 int
-client_data_open(client_data_t *client_data) {
-    int err=0;
+client_data_open(rfbClient* rfb_client, client_data_t *client_data) {
+    int ret, err=0;
     int fd=-1;
-
+    off_t pos = ftell(client_data->out_fp);
     do {
+	/* add a keyframe every few bytes */
+	if( client_data->keyframe_last == -1 || pos - client_data->keyframe_last > client_data->keyframe_max ) {
+	    ret = SendFramebufferUpdateRequest(rfb_client, 0, 0, rfb_client->width, rfb_client->height, 0);
+	    assertb(ret, ("SendFramebufferUpdateRequest"));
+	    printf("keyframe\n");
+	    client_data->keyframe_last = pos;
+	}
+
 	if( client_data->out_fp ) {
 	    if( ftell(client_data->out_fp) < client_data->out_max_size ) {
 		err = 0;
@@ -126,7 +138,7 @@ vnc_update(rfbClient* client, int x, int y, int w, int h) {
     int ret;
 
     do {
-	ret = client_data_open(client_data);
+	ret = client_data_open(client, client_data);
 	assertb(!ret, ("client_data_open"));
 	off = ftell(client_data->out_fp);
 	assertb_syserr(off>=0, ("ftell"));
@@ -248,13 +260,13 @@ main(int argc, char **argv) {
     client_data_init(&client_data);
     do {
 	if( argc != 4 ) {
-	    fprintf(stderr, "usage: vnc_client out_prefix host port\n");
+	    fprintf(stderr, "usage: vnc_client host port out_prefix\n");
 	    exit(1);
 	}
-	client_data.out_prefix = argv[1];
-	host = argv[2];
-	port = strtoul(argv[3], &p, 0);
-	assertb(p>argv[3], ("Invalid port: %s", argv[3]));
+	host = argv[1];
+	port = strtoul(argv[2], &p, 0);
+	assertb(p>argv[2], ("Invalid port: %s", argv[3]));
+	client_data.out_prefix = argv[3];
 
 	rfb_client = rfbGetClient(8, 3, 4); /* 32-bpp client */
 	rfbClientSetClientData(rfb_client, CLIENT_DATA_KEY, &client_data);

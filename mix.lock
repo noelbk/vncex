@@ -10,4 +10,5 @@
   "poolboy": {:hex, :poolboy, "1.5.1"},
   "ranch": {:git, "git://github.com/ninenines/ranch.git", "adf1822defc2b7cfdc7aca112adabfa1d614043c", [ref: "1.0.0"]},
   "sqlite_ecto": {:hex, :sqlite_ecto, "0.1.0"},
-  "sqlitex": {:hex, :sqlitex, "0.6.0"}}
+  "sqlitex": {:hex, :sqlitex, "0.6.0"},
+  "timex": {:hex, :timex, "0.13.4"}}

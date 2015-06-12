@@ -1,24 +1,16 @@
-defmodule VNC.Client.Db do
+defmodule Vnc.Db do
 	use GenServer
 
-	defmodule State do
-		defstruct [ :db, :listener ]
-	end
-
-	def start_link(vnc_client, filename, opts \\ []) do
-		{:ok, listener} = vnc_client.listen_events(self())
-		{:ok, db} = db_open(filename)
-		state = %State{db: db, listener: listener}
-		GenServer.start_link(__MODULE__, state, opts)
-	end
-
-	def db_open(filename) do
+	def open(filename) do
+		if is_binary(filename) do
+			filename = String.to_char_list(filename)
+		end
 		{:ok, db} = :esqlite3.open(filename)
-		{:ok, _version} = db_upgrade(db)
-		{:ok, db}
+		{:ok, version} = db_upgrade(db)
+		{:ok, db, version}
 	end
 
-	def db_upgrade(db) do
+	defp db_upgrade(db) do
     :ok = :esqlite3.exec("begin;", db)
 		case :esqlite3.exec("create table version (version int not null)", db) do
 			{:error, {:sqlite_error, 'table version already exists'}} -> 
@@ -32,43 +24,59 @@ defmodule VNC.Client.Db do
 		{:ok, version}
 	end
 
-	def db_upgrade(0, db) do
+	defp db_upgrade(0, db) do
 		:ok = :esqlite3.exec("create table vnc_event (" <>
 			"  id integer not null primary key" <>
-			"  ,time decimal(18,6) not null" <>
-			"  ,event varchar(128) not null" <>
-			"  ,params varchar(8192) not null" <>
+			"  ,time integer not null" <>
+			"  ,type varchar(64) not null" <>
+			"  ,json varchar(8192) not null" <>
 			")", db)
 		:ok = :esqlite3.exec("create index vnc_event_time on vnc_event (time)", db)
-		:ok = :esqlite3.exec("create index vnc_event_event on vnc_event (event)", db)
+		:ok = :esqlite3.exec("create index vnc_event_type on vnc_event (type)", db)
 		:ok = :esqlite3.exec("update version set version=1", db)
 		db_upgrade(1, db)
 	end
 
-	def db_upgrade(1, db) do
+	defp db_upgrade(1, db) do
 		# latest version, don't upgrade the database past this
 		# verify the version is really 1
 		[{1}] = :esqlite3.q("select version from version", db)
 		{:ok, 1}
 	end
 
-	def insert_event(db, time, event, params) do
-		{:ok, st } = :esqlite3.prepare("insert into vnc_event (time, event, params) values (?1, ?2, ?3)", db)
-		:esqlite3.bind(st, [time, event, params])
-		:esqlite3.step(st)
+	def event_insert(db, event) do
+		{:ok, json} = Vnc.Event.encode(event)
+		{:ok, dec} = Vnc.Event.decode(json)
+		:"$done" = :esqlite3.exec("insert into vnc_event (time, type, json) values (?1, ?2, ?3)", [event.time, event.type, json], db)
+		{:ok, dec}
 	end
 	
-	def seek(db, time) do
-		:esqlite3.exec("select * from vnc_event" <>
+	def event_play(db, time) do
+		{:ok, rs} = :esqlite3.prepare(
+      "select * from vnc_event" <>
 			" where time >= (" <>
 			"   select max(time)" <>
-			"   from vnc_event ve2" <>
+			"   from vnc_event" <>
 			"   where time <= ?1" <> 
-			"   and ve2.event='keyframe')" <>
-			" and time <= ?1" <>
-			" order by time", [time], db)
+			"   and type='keyframe')" <>
+			" order by time", db)
+		:ok = :esqlite3.bind(rs, [time])
+		{:ok, rs}
+	end
+
+	def event_next(rs) do
+		case :esqlite3.step(rs) do
+			{:row, {_id, _time, _type, event}} -> 
+				{:ok, event} = Vnc.Event.decode(event)
+				{:vnc_event, event}
+			:"$done" -> 
+				:end
+		end
 	end
 	
-	def play(db, time) do
+	def event_finalize(rs) do
+		# TODO(nbk) shouldn't this be supported by esqlite3?
+		# :esqlite3.finalize(rs)
+		:ok
 	end
 end

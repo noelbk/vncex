@@ -1,5 +1,5 @@
 #! /bin/bash
 
-mkdir -p out
-exec ./src/vnc_client out/ localhost 5901
+mkdir -p $1
+exec ./src/vnc_client localhost 5901 $1/
 

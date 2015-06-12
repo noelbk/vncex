@@ -1,4 +1,4 @@
-defmodule VNC.ClientTest do 
+defmodule Vnc.Client.Test do 
 	use ExUnit.Case, async: true
 
 	defmodule PutsEvent do
@@ -20,9 +20,9 @@ defmodule VNC.ClientTest do
 	end
 
 	test "vnc_client events" do
-		{:ok, vnc_client} = VNC.Client.start_link(self, [cmd: "test/vnc_client_mock"])
-		{:ok, events} = VNC.Client.events(vnc_client)
-		#GenEvent.add_handler(events, PutsEvent, :ok)
+		{:ok, vnc_client} = Vnc.Client.start_link("test/vnc_client_test", [cmd: "test/vnc_client_mock", listener: self])
+		#{:ok, _vnc_player} = Vnc.Player.start_link(vnc_client, self)
+		{:ok, events} = Vnc.Client.events(vnc_client)
 
 		myself = self()
 		myfunc = fn(msg) ->
@@ -30,9 +30,9 @@ defmodule VNC.ClientTest do
 		end
 		GenEvent.add_handler(events, FuncEvent, myfunc)
 
-		assert_receive({:vnc_client_msg, ^vnc_client, %Vnc.Event.Tile{}})
-		assert_receive({:myfunc, :vnc_client_msg})
-		VNC.Client.stop(vnc_client)
+		assert_receive({:vnc_event, ^vnc_client, %Vnc.Event.Tile{}})
+		assert_receive({:myfunc, :vnc_event})
+		Vnc.Client.stop(vnc_client)
 		assert_receive({:vnc_client_stop, ^vnc_client})
 		assert_receive({:myfunc, :vnc_client_stop})
 	end
