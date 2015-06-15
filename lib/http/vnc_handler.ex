@@ -34,12 +34,23 @@ defmodule Http.Vnc.Handler do
 
   # handle messages from the vnc client
   def websocket_info({:vnc_event, _pid, event}, req, state) do
-		case event.type do
-			:tile -> event = %{event | file: "/vnc_tile?file=#{event.file}&off=#{event.off}&len=#{event.len}"}
-			_ -> event
+		reply_extra = []
+		if event.type == :tile do
+			if :true do
+				# (faster) send the png in a binary hunk immediately
+				{:ok, fd} = :file.open(event.file, [:read, :raw, :binary])
+				{:ok, buf} = :file.pread(fd, event.off, event.len)
+				:file.close(fd)
+				reply_extra = [{:binary, buf}]
+				event = %{event | file: nil}
+			else
+				# (slower) get the client to make a separate request to fetch the png
+				event = %{event | file: "/vnc_tile?file=#{event.file}&off=#{event.off}&len=#{event.len}"}
+			end
 		end
     {:ok, json} = Vnc.Event.encode(event)
-    {:reply, {:text, json}, req, state}
+		reply = [{:text, json}] ++ reply_extra
+    {:reply, reply, req, state}
   end
 
   # fallback message handler 

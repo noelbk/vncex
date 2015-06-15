@@ -1,12 +1,14 @@
 defmodule Vnc.Db do
 	use GenServer
 
+	@insert_commit_timeout 10
+
 	defmodule State do
-		defstruct [db: nil]
+		defstruct [db: nil, sql_prep: %{}, in_transaction: false]
 	end
 
 	def start_link(filename, opts \\ []) do
-		{:ok, db, version} = open(filename)
+		{:ok, db, _version} = open(filename)
 		state = %State{ db: db }
 		GenServer.start_link(__MODULE__, state, opts)
 	end
@@ -76,16 +78,63 @@ defmodule Vnc.Db do
 		# latest version, don't upgrade the database past this
 		# verify the version is really 1
 		[{1}] = :esqlite3.q("select version from version", db)
+
+		# tips from http://stackoverflow.com/questions/1711631/improve-insert-per-second-performance-of-sqlite
+		# too risky though.  I want to make sure the database is not corrupt after termination
+		#:ok = :esqlite3.exec("pragma synchronous = off", db)
+		#:ok = :esqlite3.exec("pragma journal_mode = memory", db)
+
 		{:ok, 1}
 	end
 
+	def sql_prep_exec(sql, values, state) do
+		{st, state} = case Map.get(state.sql_prep, sql) do 
+										nil ->
+											{:ok, st} = :esqlite3.prepare(sql, state.db)
+											{st, %{state | sql_prep: Map.put(state.sql_prep, sql, st)}}
+										st ->
+											{st, state}
+									end
+		:ok = :esqlite3.bind(st, values)
+		{:ok, state, :esqlite3.step(st)}
+	end
+
+	def commit(state) do
+		if state.in_transaction do
+			:esqlite3.exec("commit", state.db)
+			{:ok, %{state | in_transaction: false}}
+		else
+			{:ok, state}
+		end
+	end
+	
+	def begin(state) do
+		if state.in_transaction do
+			{:ok, state}
+		else
+			:timer.send_after(@insert_commit_timeout, :commit)
+			:esqlite3.exec("begin", state.db)
+			{:ok, %{state | in_transaction: true}}
+		end
+	end
+
+
 	def handle_cast({:event_insert, event}, state) do
 		{:ok, json} = Vnc.Event.encode(event)
-		:"$done" = :esqlite3.exec("insert into vnc_event (time, type, json) values (?1, ?2, ?3)", [event.time, event.type, json], state.db)
+
+		# try to insert several events in a single transaction
+		if event.type == :keyframe do
+			{:ok, state} = commit(state)
+		end
+		{:ok, state} = begin(state)
+
+		{:ok, state, :"$done"} = sql_prep_exec("insert into vnc_event (time, type, json) values (?1, ?2, ?3)", 
+																					 [event.time, event.type, json], state)
 		{:noreply, state}
 	end
 	
 	def handle_call({:event_play, time}, _from, state) do
+		{:ok, state} = commit(state)
 		{:ok, rs} = :esqlite3.prepare(
       "select * from vnc_event" <>
 			" where time >= (" <>
@@ -113,4 +162,10 @@ defmodule Vnc.Db do
 		# :esqlite3.finalize(rs)
 		{:reply, :ok, state}
 	end
+
+	def handle_info(:commit, state) do
+		{:ok, state} = commit(state)
+		{:noreply, state}
+	end
 end
+	

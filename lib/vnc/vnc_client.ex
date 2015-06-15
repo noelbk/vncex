@@ -106,7 +106,7 @@ defmodule Vnc.Client do
 								{:error, line}
 						end
 		{:ok, event, state} = event_set_time(event, state)
-		#Vnc.Db.event_insert(state.db, event)
+		Vnc.Db.event_insert(state.db, event)
 		GenEvent.notify(state.events, {:vnc_event, self(), event})
 		state
 	end
@@ -130,6 +130,8 @@ defmodule Vnc.Client do
 		{:noreply, state}
 	end
 
+	# private utilities
+
 	def event_set_time(event, state) do
 		now = Time.now(:msecs)
 		if state.t0 == nil do
@@ -138,5 +140,5 @@ defmodule Vnc.Client do
 		event = Map.put(event, :time, now - state.t0)
 		{:ok, event, state}
 	end
-	
+
 end
