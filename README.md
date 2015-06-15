@@ -1,39 +1,40 @@
-Cowboy Elixir Example
-===================
+VNC Record/Replay in Elixir and HTML5
+======================================
 
-Examples of using the [Cowboy web server](http://ninenines.eu/docs/en/cowboy/HEAD/guide/introduction/) with [Elixir](http://elixir-lang.org/).  I wrote these because the only other good example I could find was out of date - it had been written before [Hex](http://hex.pm) became a thing, and didn't work with current versions of Elixir.
+Run a VNC client in a web browser served up by an Elixir application
 
-This one is tested to work with:
-* Elixir 1.0.0  and  0.15.1 (with edit to dependencies)
-* Cowboy 1.0.0
 
-Usage:
-------------------
+Installation
+------------
 
 Make sure you have elixir >= 1.0.0 installed.  Clone the repo, and change directory to it.  Run the following commands:
+
+
+  1. make the C vnc client
+
+    cd src && make
+
+  2. start a test VNC server
+
+    install vncserver, vncclient
+    vncpasswd 123456
+    ./vnc_server
+
+  3. run the VNC web server application
 
     mix deps.get
     mix deps.compile
     iex -S mix
 
-Then open a browser to localhost:8080.
+  4. open http://localhost:8080/static/vnc.html
 
-Examples included:
-------------------
+Architecture
+------------
 
-* Serving static files
-* Dynamic HTML with a custom handler
-* Opening a websocket and pushing a message to the client periodically 
-* (Coming Soon) Accepting a GET request and replying with a JSON object 
+![alt tag](doc/vncex_processes.png)
 
 
-Contributing:
--------------
+Author
+------
 
-Pull requests are welcomed.  Since this is an example designed for folks new to both Elixir and Cowboy,
-make sure all code is very thoroughly documented, please. :-)
-
-License:
---------
-
-This code is released under the MIT license.  See LICENSE.
+Noel Burton-Krahn <noel@burton-krahn.com>
