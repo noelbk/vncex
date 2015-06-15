@@ -102,6 +102,15 @@ defmodule Vnc.Client do
 								%Vnc.Event.Keyframe{}
 							["password?"] -> 
 								%Vnc.Event.Password{}
+							["cursor_shape", x, y, w, h, file, off, len] -> 
+								%Vnc.Event.CursorShape{x: int.(x), y: int.(y), w: int.(w), h: int.(h), 
+																			 file: file, off: int.(off), len: int.(len)}
+							["cursor_pos", x, y] -> 
+								%Vnc.Event.CursorPos{x: int.(x), y: int.(y)}
+							["cursor_lock", x, y, w, h] -> 
+								%Vnc.Event.CursorLock{x: int.(x), y: int.(y), w: int.(w), h: int.(h)}
+							["cursor_unlock"] -> 
+								%Vnc.Event.CursorUnlock{}
 							_ -> 
 								{:error, line}
 						end

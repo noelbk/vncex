@@ -26,6 +26,24 @@ defmodule Vnc.Event.Keys do
 	defstruct [ :time, :keys, type: :keys ]
 end
 
+
+defmodule Vnc.Event.CursorShape do
+	defstruct [ :time, :x, :y, :w, :h, :file, :off, :len, type: :cursor_shape ]
+end
+
+defmodule Vnc.Event.CursorPos do
+	defstruct [ :time, :x, :y, type: :cursor_pos ]
+end
+
+defmodule Vnc.Event.CursorLock do
+	defstruct [ :time, :x, :y, :w, :h, type: :cursor_lock ]
+end
+
+defmodule Vnc.Event.CursorUnlock do
+	defstruct [ :time, type: :cursor_unlock ]
+end
+
+
 defmodule Vnc.Event do
 	def encode(event) do
 		Poison.encode(event)

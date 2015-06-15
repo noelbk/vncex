@@ -35,7 +35,7 @@ defmodule Http.Vnc.Handler do
   # handle messages from the vnc client
   def websocket_info({:vnc_event, _pid, event}, req, state) do
 		reply_extra = []
-		if event.type == :tile do
+		if event.type == :tile or event.type == :cursor_shape  do
 			if :true do
 				# (faster) send the png in a binary hunk immediately
 				{:ok, fd} = :file.open(event.file, [:read, :raw, :binary])

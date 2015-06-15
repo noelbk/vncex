@@ -51,10 +51,12 @@ client_data_free(client_data_t *client_data) {
 }
 
 int
-client_data_open(rfbClient* rfb_client, client_data_t *client_data) {
+client_data_open(rfbClient* rfb_client) {
     int ret, err=0;
     int fd=-1;
     off_t pos=0;
+    client_data_t *client_data = rfbClientGetClientData(rfb_client, CLIENT_DATA_KEY);
+    
     do {
 	if( client_data->out_fp ) {
 	    pos = ftell(client_data->out_fp);
@@ -97,9 +99,10 @@ client_data_open(rfbClient* rfb_client, client_data_t *client_data) {
     return err;
 }
 
+# define WRITE_PNG_ALPHA 0x1
 
 int
-write_png(FILE *fp, png_bytep fb, int x, int y, int w, int h, int stride, int bpp) {
+write_png(FILE *fp, png_bytep fb, int x, int y, int w, int h, int stride, int bpp, int flags) {
     png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     png_infop info_ptr = png_create_info_struct(png_ptr);
     png_bytep rowp=0;
@@ -118,8 +121,10 @@ write_png(FILE *fp, png_bytep fb, int x, int y, int w, int h, int stride, int bp
 	png_set_IHDR(png_ptr, info_ptr, w, h,
 		     8, PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
 		     PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
-	png_set_invert_alpha(png_ptr);
-	png_set_strip_alpha(png_ptr);
+	if( !(flags & WRITE_PNG_ALPHA) ) {
+	    png_set_invert_alpha(png_ptr);
+	    png_set_strip_alpha(png_ptr);
+	}
 	png_write_info(png_ptr, info_ptr);
 	rowp = fb + y * stride + x * bpp;
 	for(yi=0; yi<h; yi++) {
@@ -134,26 +139,42 @@ write_png(FILE *fp, png_bytep fb, int x, int y, int w, int h, int stride, int bp
     return err;
 }
 
-void
-vnc_update(rfbClient* client, int x, int y, int w, int h) {
-    off_t off, end;
-    int bpp, stride;
-    client_data_t* client_data = rfbClientGetClientData(client, CLIENT_DATA_KEY);
-    int ret;
+int
+save_png(rfbClient* rfb_client, char **file, off_t *off, off_t *len, uint8_t *buf, 
+	 int x, int y, int w, int h, int stride, int bpp, int flags) {
+    int ret, err = -1;
+    client_data_t *client_data = rfbClientGetClientData(rfb_client, CLIENT_DATA_KEY);
 
     do {
-	ret = client_data_open(client, client_data);
-	assertb(!ret, ("client_data_open"));
-	off = ftell(client_data->out_fp);
+	ret = client_data_open(rfb_client);
+	assertb(!ret && client_data->out_fp, ("client_data_open"));
+	*file = client_data->out_path;
+	*off = ftell(client_data->out_fp);
+	ret = write_png(client_data->out_fp, buf, x, y, w, h, stride, bpp, flags);
 	assertb_syserr(off>=0, ("ftell"));
-	bpp = client->format.bitsPerPixel/8;
-	stride = bpp * client->width;
-	ret = write_png(client_data->out_fp, client->frameBuffer, x, y, w, h, stride, bpp);
-	assertb_syserr(!ret, ("write_png"));
 	fflush(client_data->out_fp);
-	end = ftell(client_data->out_fp);
-	assertb_syserr(end>off, ("end=ftell"));
-	printf("tile %d %d %d %d %s %lu %lu\n", x, y, w, h, client_data->out_path, off, end-off);
+	*len = ftell(client_data->out_fp);
+	assertb_syserr(*len>*off, ("end=ftell"));
+	*len -= *off;
+	err = 0;
+    } while(0);
+    return err;
+}
+
+
+void
+vnc_update(rfbClient* rfb_client, int x, int y, int w, int h) {
+    char *file;
+    off_t off, len;
+    int ret;
+    int bpp, stride;
+
+    do {
+	bpp = rfb_client->format.bitsPerPixel/8;
+	stride = bpp * rfb_client->width;
+	ret = save_png(rfb_client, &file, &off, &len, rfb_client->frameBuffer, x, y, w, h, stride, bpp, 0);
+	assertb_syserr(!ret, ("save_png"));
+	printf("tile %d %d %d %d %s %lu %lu\n", x, y, w, h, file, off, len);
     } while(0);
 }
 
@@ -206,6 +227,7 @@ vnc_resize(rfbClient* rfb_client) {
 	}
 	rfb_client->frameBuffer = (unsigned char*)malloc(w * h * depth/8);
 	assertb_syserr(rfb_client->frameBuffer, ("malloc"));
+	rfb_client->appData.useRemoteCursor = TRUE;
 	ret = SetFormatAndEncodings(rfb_client);
 	assertb(ret, ("SetFormatAndEncodings"));
 	printf("resize %d %d\n", w, h);
@@ -215,6 +237,45 @@ vnc_resize(rfbClient* rfb_client) {
 	err = 0;
     } while(0);
     return !err;
+}
+
+void
+vnc_cursor_shape(rfbClient* rfb_client, int x, int y, int w, int h, int bytesPerPixel) {
+    int i, ret;
+    char *file;
+    off_t off, len;
+    uint8_t *src, *mask;
+    do {
+	assertb(bytesPerPixel==4, ("unexpected bytesPerPixel=%d", bytesPerPixel));
+	assertb(rfb_client->rcSource, ("client->rcSource"));
+	assertb(rfb_client->rcMask, ("client->rcMask"));
+	src = rfb_client->rcSource;
+	mask = rfb_client->rcMask;
+	for(i=0; i<w*h; i++) {
+	    src[3] = mask[0] ? 0xff : 0x00;
+	    src += bytesPerPixel;
+	    mask += 1;
+	}
+	ret = save_png(rfb_client, &file, &off, &len, rfb_client->rcSource, 0, 0, w, h, w*bytesPerPixel, bytesPerPixel, WRITE_PNG_ALPHA);
+	assertb_syserr(!ret, ("save_png"));
+	printf("cursor_shape %d %d %d %d %s %lu %lu\n", x, y, w, h, file, off, len);
+   } while(0);
+}
+
+rfbBool
+vnc_cursor_pos(rfbClient* rfb_client, int x, int y) {
+    printf("cursor_pos %d %d\n", x, y);
+    return TRUE;
+}
+
+void
+vnc_cursor_lock(rfbClient* rfb_client, int x, int y, int w, int h) {
+    printf("cursor_lock %d %d %d %d\n", x, y, w, h);
+}
+
+void
+vnc_cursor_unlock(rfbClient* rfb_client) {
+    printf("cursor_unlock\n");
 }
 
 int
@@ -281,6 +342,12 @@ main(int argc, char **argv) {
 	rfb_client->GotFrameBufferUpdate = vnc_update;
 	rfb_client->GotCopyRect = vnc_copyrect;
 	rfb_client->GetPassword = vnc_get_password;
+
+	rfb_client->appData.useRemoteCursor = TRUE;
+	rfb_client->GotCursorShape = vnc_cursor_shape;
+	rfb_client->HandleCursorPos = vnc_cursor_pos;
+	//rfb_client->SoftCursorLockArea = vnc_cursor_lock;
+	//rfb_client->SoftCursorUnlockScreen = vnc_cursor_unlock;
 
 	/* Connect */
 	ret = rfbInitClient(rfb_client, NULL, NULL);

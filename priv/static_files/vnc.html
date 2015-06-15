@@ -8,7 +8,10 @@
   <body onload="Vnc.init()">
       <h1>VncEx - VNC via websocket</h1>
       <h2 id='statusbar'>Status: <span id='status'></span></h2>
-	  <canvas style="border: 3px solid gray" id="canvas" width="1024" height="768"></canvas>
+	  <div id='screen' style="position: relative; cursor: none"  width="10" height="10">
+		  <canvas id="canvas" style="position: absolute; z-index: 1; border: 3px solid gray" width="100%" height="100%"></canvas>
+		  <img id="pointer" style="position: absolute; z-index: 99; pointer-events: none"/>
+	  </div>
   </body>
 </html>
 

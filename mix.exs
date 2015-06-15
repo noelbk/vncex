@@ -36,3 +36,12 @@ defmodule VncEx.Mixfile do
 		]    
   end
 end
+
+defmodule Mix.Tasks.Compile.Vncex do
+  use Mix.Task
+
+	def run(_) do
+		{result, _error_code} = System.cmd("make", ["clean", "all", "test"], stderr_to_stdout: true, cd: "src")
+    Mix.shell.info result
+	end
+end

@@ -17,3 +17,7 @@ test_sscanf_objs = test_sscanf$o
 test_sscanf: $(test_sscanf_objs) Makefile debug.h
 	$(CC) $(CFLAGS) $(test_sscanf_cflags) -o $@ $(test_sscanf_objs) $(test_sscanf_libs)
 
+all_exes = vnc_client $(test_progs)
+clean:
+	$(RM) *.o
+	$(RM) $(all_exes)
